@@ -1,0 +1,71 @@
+# This compose file starts up the whole sandwich-network and all of its containers
+version: "3"
+
+services:
+  # Service for the Nodejs server-a that contacts the client and sends sandwhiches to be created to the server-b
+  server-a:
+    image: nodejs-server-a
+
+    depends_on:
+     - rapid-runner-rabbit
+    command: ["../utils/wait-for-it.sh", "rapid-runner-rabbit:5672", "--",  "npm", "start"]
+    build:
+      dockerfile: ./server-a/Dockerfile
+      context:  ./backend/
+
+    # Host port 80 is directed to the containers port 8080 where the Nodejs server is running
+    ports:
+     - 80:8080
+
+    networks:
+     - sandwich-network
+
+    # restart: always
+
+  # Service for the RabbitMQ container
+  rapid-runner-rabbit:
+    image: rabbitmq:3-management
+    ports:
+     - 5672:5672
+     - 15672:15672
+    networks:
+     - sandwich-network
+
+  # Service for the Nodejs server-b that handles the sandwhiches
+  server-b:
+    image: nodejs-server-b
+    depends_on:
+      - rapid-runner-rabbit
+    command: ["../utils/wait-for-it.sh", "rapid-runner-rabbit:5672", "--",  "npm", "start"]
+    build:
+      dockerfile: ./server-b/Dockerfile
+      context: ./backend/
+
+    # Host port 81 is directed to the containers port 8080 where the Nodejs server is running
+    ports:
+      - 81:8080
+
+    networks:
+      - sandwich-network
+
+  # Service for the React frontend
+  react-front:
+    image: react-front-img
+    depends_on:
+      - server-a
+    build:
+      dockerfile: ./Dockerfile
+      context: ./frontend
+
+    # Host port 3000 is directed to the containers port 3000 where the React server is running
+    ports:
+      - 3000:3000
+
+    networks:
+      - sandwich-network
+
+    stdin_open: true
+
+# Here we create a named network, that all the architecture components will use
+networks:
+  sandwich-network:
